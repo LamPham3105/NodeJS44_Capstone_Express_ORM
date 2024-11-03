@@ -17,8 +17,7 @@ const register = async (req, res) => {
 
     if (nguoiDungExist) {
       return res.status(BAD_REQUEST).json({
-        message: `Tài khoản đã tồn tại`,
-        data: null,
+        message: `Account has existed`,
       });
     }
 
@@ -30,11 +29,11 @@ const register = async (req, res) => {
     });
 
     return res.status(OK).json({
-      message: "Đăng ký thành công",
+      message: "Register successfully",
       data: nguoiDungNew,
     });
   } catch (error) {
-    return res.status(INTERNAL_SERVER).json({ message: "error" });
+    return res.status(INTERNAL_SERVER).json({ message: error.message });
   }
 };
 
@@ -45,6 +44,7 @@ const login = async (req, res) => {
     let nguoiDungExist = await prisma.nguoi_dung.findFirst({
       where: {
         email,
+        is_active: true,
       },
     });
 
@@ -67,7 +67,7 @@ const login = async (req, res) => {
       data: accessToken,
     });
   } catch (error) {
-    return res.status(INTERNAL_SERVER).json({ message: "error" });
+    return res.status(INTERNAL_SERVER).json({ message: error.message });
   }
 };
 

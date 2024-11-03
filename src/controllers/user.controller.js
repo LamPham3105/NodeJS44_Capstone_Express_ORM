@@ -7,9 +7,10 @@ const getInforUser = async (req, res) => {
   try {
     let { nguoi_dung_id } = req.params;
 
-    let nguoiDung = await prisma.nguoi_dung.findMany({
+    let nguoiDung = await prisma.nguoi_dung.findFirst({
       where: {
         nguoi_dung_id: Number(nguoi_dung_id),
+        is_active: true,
       },
     });
 
@@ -40,6 +41,7 @@ const updateUser = async (req, res) => {
     let nguoiDung = await prisma.nguoi_dung.findFirst({
       where: {
         nguoi_dung_id: Number(nguoi_dung_id),
+        is_active: true,
       },
     });
 

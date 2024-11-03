@@ -1,11 +1,12 @@
 import { PrismaClient } from "@prisma/client";
 import { INTERNAL_SERVER, BAD_REQUEST, OK, NOT_FOUND } from "../../const.js";
+import { getPayloadToken } from "../config/jwt.js";
 
 const prisma = new PrismaClient();
 
 const getListImagePage = async (req, res) => {
   try {
-    let { page, size } = req.params;
+    let { page, size } = req.query;
 
     page = parseInt(page, 10);
     size = parseInt(size, 10);
@@ -20,6 +21,9 @@ const getListImagePage = async (req, res) => {
     let index = (page - 1) * size;
 
     let hinhAnh = await prisma.hinh_anh.findMany({
+      where: {
+        is_delete: false,
+      },
       skip: index,
       take: size,
     });
@@ -36,7 +40,7 @@ const getListImagePage = async (req, res) => {
 
 const getListImageByNamePage = async (req, res) => {
   try {
-    let { ten_hinh, page, size } = req.params;
+    let { ten_hinh, page, size } = req.query;
 
     page = parseInt(page, 10);
     size = parseInt(size, 10);
@@ -52,17 +56,21 @@ const getListImageByNamePage = async (req, res) => {
 
     let hinhAnh = await prisma.hinh_anh.findMany({
       where: {
-        ten_hinh: ten_hinh,
+        is_delete: false,
       },
       skip: index,
       take: size,
     });
 
-    if (hinhAnh.length == 0) {
+    let filteredHinhAnh = hinhAnh.filter((image) =>
+      image.ten_hinh.toLowerCase().includes(ten_hinh.toLowerCase())
+    );
+
+    if (filteredHinhAnh.length == 0) {
       return res.status(NOT_FOUND).json({ message: "Images not found" });
     }
 
-    return res.status(OK).json(hinhAnh);
+    return res.status(OK).json(filteredHinhAnh);
   } catch (error) {
     return res.status(INTERNAL_SERVER).json({ message: error.message });
   }
@@ -75,6 +83,7 @@ const getDetailImageAndUserByIDImage = async (req, res) => {
     let hinhAnh = await prisma.hinh_anh.findUnique({
       where: {
         hinh_id: Number(hinh_id),
+        is_delete: false,
       },
       include: {
         nguoi_dung: {
@@ -98,19 +107,17 @@ const getDetailImageAndUserByIDImage = async (req, res) => {
 
 const getSaveImageByImageID = async (req, res) => {
   try {
+    const { nguoi_dung_id } = await getPayloadToken(req.headers.token)?.payload;
+
     const { hinh_id } = req.params;
 
     const luuAnh = await prisma.luu_anh.findFirst({
       where: {
         hinh_id: Number(hinh_id),
+        nguoi_dung_id: Number(nguoi_dung_id),
+        is_delete: false,
       },
       include: {
-        nguoi_dung: {
-          select: {
-            ho_ten: true,
-            email: true,
-          },
-        },
         hinh_anh: {
           select: {
             ten_hinh: true,
@@ -133,9 +140,7 @@ const getSaveImageByImageID = async (req, res) => {
 
 const getListImageCreatedByUserIDPage = async (req, res) => {
   try {
-    let { page, size } = req.params;
-
-    const { nguoi_dung_id } = req.body;
+    let { nguoi_dung_id, page, size } = req.query;
 
     page = parseInt(page, 10);
     size = parseInt(size, 10);
@@ -149,7 +154,7 @@ const getListImageCreatedByUserIDPage = async (req, res) => {
 
     if (!nguoi_dung_id) {
       return res.status(BAD_REQUEST).json({
-        message: "Field is required: nguoi_dung_id",
+        message: "Field is required nguoi_dung_id",
       });
     }
 
@@ -158,6 +163,7 @@ const getListImageCreatedByUserIDPage = async (req, res) => {
     let hinhAnh = await prisma.hinh_anh.findMany({
       where: {
         nguoi_dung_id: Number(nguoi_dung_id),
+        is_delete: false,
       },
       skip: index,
       take: size,
@@ -175,9 +181,7 @@ const getListImageCreatedByUserIDPage = async (req, res) => {
 
 const getListImageSavedByUserIDPage = async (req, res) => {
   try {
-    let { page, size } = req.params;
-
-    const { nguoi_dung_id } = req.body;
+    let { nguoi_dung_id, page, size } = req.query;
 
     page = parseInt(page, 10);
     size = parseInt(size, 10);
@@ -191,7 +195,7 @@ const getListImageSavedByUserIDPage = async (req, res) => {
 
     if (!nguoi_dung_id) {
       return res.status(BAD_REQUEST).json({
-        message: "Field is required: nguoi_dung_id",
+        message: "Field is required nguoi_dung_id",
       });
     }
 
@@ -200,6 +204,7 @@ const getListImageSavedByUserIDPage = async (req, res) => {
     let luuAnh = await prisma.luu_anh.findMany({
       where: {
         nguoi_dung_id: Number(nguoi_dung_id),
+        is_delete: false,
       },
       include: {
         hinh_anh: {
@@ -218,7 +223,7 @@ const getListImageSavedByUserIDPage = async (req, res) => {
       return res.status(NOT_FOUND).json({ message: "Images not found" });
     }
 
-    const mergeImages = luuAnh.map((item) => item.hinh_anh);
+    let mergeImages = luuAnh.map((item) => item.hinh_anh);
 
     return res.status(OK).json(mergeImages);
   } catch (error) {
@@ -230,17 +235,53 @@ const deleteImageByID = async (req, res) => {
   try {
     let { hinh_id } = req.params;
 
+    let binhLuan = await prisma.binh_luan.findMany({
+      where: {
+        hinh_id: Number(hinh_id),
+        is_delete: false,
+      },
+    });
+
+    let luuAnh = await prisma.luu_anh.findMany({
+      where: {
+        hinh_id: Number(hinh_id),
+        is_delete: false,
+      },
+    });
+
     let hinhAnh = await prisma.hinh_anh.findFirst({
+      where: {
+        hinh_id: Number(hinh_id),
+        is_delete: false,
+      },
+    });
+
+    if (!hinhAnh || luuAnh.length == 0 || binhLuan.length == 0) {
+      return res.status(NOT_FOUND).json({ message: "Image not found" });
+    }
+
+    await prisma.binh_luan.updateMany({
+      data: {
+        is_delete: true,
+      },
       where: {
         hinh_id: Number(hinh_id),
       },
     });
 
-    if (!hinhAnh) {
-      return res.status(NOT_FOUND).json({ message: "Image not found" });
-    }
+    await prisma.luu_anh.updateMany({
+      data: {
+        is_delete: true,
+      },
+      where: {
+        hinh_id: Number(hinh_id),
+      },
+    });
 
-    await prisma.hinh_anh.delete({
+    await prisma.hinh_anh.update({
+      data: {
+        is_delete: true,
+      },
       where: {
         hinh_id: Number(hinh_id),
       },
@@ -260,13 +301,14 @@ const createImage = async (req, res) => {
 
     if (!ten_hinh || !mo_ta || !nguoi_dung_id) {
       return res.status(BAD_REQUEST).json({
-        message: "All fields are required: ten_hinh, mo_ta, nguoi_dung_id",
+        message: "All fields are required ten_hinh, mo_ta, nguoi_dung_id",
       });
     }
 
     let nguoiDung = await prisma.nguoi_dung.findFirst({
       where: {
         nguoi_dung_id: Number(nguoi_dung_id),
+        is_active: true,
       },
     });
 

@@ -10,6 +10,7 @@ const getCommentByIDImage = async (req, res) => {
     let binhLuan = await prisma.binh_luan.findMany({
       where: {
         hinh_id: Number(hinh_id),
+        is_delete: false,
       },
     });
 
